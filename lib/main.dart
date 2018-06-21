@@ -7,6 +7,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_analytics/observer.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 
 void main() => runApp(new ChatApp());
@@ -25,6 +26,7 @@ final ThemeData kDefaultTheme = new ThemeData(
 final googleSignIn = new GoogleSignIn();
 final analytics = new FirebaseAnalytics();
 final auth = FirebaseAuth.instance;
+final DocumentReference documentReference = Firestore.instance.document('data/messages');
 
 class ChatApp extends StatelessWidget {
   static FirebaseAnalyticsObserver observer =
@@ -213,7 +215,14 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       _messages.insert(0, message);
     });
     message.animationController.forward();
-    analytics.logEvent(name: 'send_message');
+
+    documentReference.setData({
+      'photoUrl': googleSignIn.currentUser.photoUrl,
+      'name': googleSignIn.currentUser.displayName,
+      'message': text,
+    }).whenComplete(() {
+      print('Document added');
+    }).catchError((e) => print(e));
   }
 
   @override
