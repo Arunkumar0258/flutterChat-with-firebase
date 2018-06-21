@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -8,7 +10,8 @@ import 'package:firebase_analytics/observer.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(new ChatApp());
 
@@ -26,7 +29,9 @@ final ThemeData kDefaultTheme = new ThemeData(
 final googleSignIn = new GoogleSignIn();
 final analytics = new FirebaseAnalytics();
 final auth = FirebaseAuth.instance;
-final DocumentReference documentReference = Firestore.instance.document('data/messages');
+final DocumentReference documentReference =
+    Firestore.instance.document('data/messages');
+File image;
 
 class ChatApp extends StatelessWidget {
   static FirebaseAnalyticsObserver observer =
@@ -47,15 +52,14 @@ class ChatApp extends StatelessWidget {
 
 Future<Null> _ensureLoggedIn() async {
   GoogleSignInAccount user = googleSignIn.currentUser;
-  if (user == null)
-    user = await googleSignIn.signInSilently();
+  if (user == null) user = await googleSignIn.signInSilently();
   if (user == null) {
     await googleSignIn.signIn();
     analytics.logLogin();
   }
   if (await auth.currentUser() == null) {
     GoogleSignInAuthentication credentials =
-    await googleSignIn.currentUser.authentication;
+        await googleSignIn.currentUser.authentication;
     await auth.signInWithGoogle(
       idToken: credentials.idToken,
       accessToken: credentials.accessToken,
@@ -82,7 +86,10 @@ class ChatMessage extends StatelessWidget {
               children: <Widget>[
                 new Container(
                     margin: const EdgeInsets.only(right: 16.0),
-                    child: new CircleAvatar(backgroundImage: new NetworkImage(googleSignIn.currentUser.photoUrl),)),
+                    child: new CircleAvatar(
+                      backgroundImage:
+                          new NetworkImage(googleSignIn.currentUser.photoUrl),
+                    )),
                 new Expanded(
                   child: new Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,9 +110,7 @@ class ChatMessage extends StatelessWidget {
   }
 }
 
-
 class ChatScreen extends StatefulWidget {
-
   final FirebaseAnalytics analytics;
   final FirebaseAnalyticsObserver observer;
 
@@ -162,6 +167,28 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             margin: const EdgeInsets.symmetric(horizontal: 8.0),
             child: new Row(
               children: <Widget>[
+                new Container(
+                  margin: new EdgeInsets.symmetric(horizontal: 4.0),
+                  child: new IconButton(
+                      icon: new Icon(Icons.photo_camera),
+                      onPressed: () async {
+                        await _ensureLoggedIn();
+                        File imageFile = await ImagePicker.pickImage(
+                            source: ImageSource.gallery);
+
+                        if (imageFile != null) {
+                          image = imageFile;
+                          setState(() {});
+                        }
+                        int random = new Random().nextInt(100000);
+                        StorageReference ref = FirebaseStorage.instance
+                            .ref()
+                            .child("image_$random.jpg");
+                        StorageUploadTask uploadTask = ref.putFile(imageFile);
+                        Uri downloadUrl = (await uploadTask.future).downloadUrl;
+                        _uploadImage(imageUrl: downloadUrl.toString());
+                      }),
+                ),
                 new Flexible(
                   child: new TextField(
                     controller: _textController,
@@ -188,8 +215,7 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                             icon: new Icon(Icons.send),
                             onPressed: _isComposing
                                 ? () => _handleSubmitted(_textController.text)
-                                : null
-                          )),
+                                : null)),
               ],
             )));
   }
@@ -211,17 +237,25 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           duration: new Duration(milliseconds: 700), vsync: this),
     );
 
-    setState(() {
-      _messages.insert(0, message);
-    });
-    message.animationController.forward();
+      setState(() {
+        _messages.insert(0, message);
+      });
+      message.animationController.forward();
 
-    documentReference.setData({
+    documentReference.updateData({
       'photoUrl': googleSignIn.currentUser.photoUrl,
       'name': googleSignIn.currentUser.displayName,
       'message': text,
     }).whenComplete(() {
       print('Document added');
+    }).catchError((e) => print(e));
+  }
+
+  void _uploadImage({String imageUrl}) {
+    documentReference.updateData({
+      'imageUrl': imageUrl,
+    }).whenComplete(() {
+      print('Image uploaded');
     }).catchError((e) => print(e));
   }
 
@@ -231,5 +265,4 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       message.animationController.dispose();
     super.dispose();
   }
-
 }
