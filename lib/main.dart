@@ -22,9 +22,9 @@ final ThemeData kDefaultTheme = new ThemeData(
 );
 
 final googleSignIn = new GoogleSignIn();
+final analytics = new FirebaseAnalytics();
 
 class ChatApp extends StatelessWidget {
-  static FirebaseAnalytics analytics = new FirebaseAnalytics();
   static FirebaseAnalyticsObserver observer =
       new FirebaseAnalyticsObserver(analytics: analytics);
 
@@ -45,8 +45,10 @@ Future<Null> _ensureLoggedIn() async {
   GoogleSignInAccount user = googleSignIn.currentUser;
   if (user == null)
     user = await googleSignIn.signInSilently();
-  if (user == null)
+  if (user == null) {
     await googleSignIn.signIn();
+    analytics.logLogin();
+  }
 }
 
 class ChatMessage extends StatelessWidget {
@@ -201,6 +203,7 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       _messages.insert(0, message);
     });
     message.animationController.forward();
+    analytics.logEvent(name: 'send_message');
   }
 
   @override
