@@ -5,10 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_analytics/observer.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
 
 void main() => runApp(new ChatApp());
-
-const String _name = "Arun";
 
 final ThemeData kIOSTheme = new ThemeData(
   primarySwatch: Colors.orange,
@@ -20,6 +20,8 @@ final ThemeData kDefaultTheme = new ThemeData(
   primarySwatch: Colors.purple,
   accentColor: Colors.blueAccent[400],
 );
+
+final googleSignIn = new GoogleSignIn();
 
 class ChatApp extends StatelessWidget {
   static FirebaseAnalytics analytics = new FirebaseAnalytics();
@@ -38,6 +40,55 @@ class ChatApp extends StatelessWidget {
     );
   }
 }
+
+Future<Null> _ensureLoggedIn() async {
+  GoogleSignInAccount user = googleSignIn.currentUser;
+  if (user == null)
+    user = await googleSignIn.signInSilently();
+  if (user == null)
+    await googleSignIn.signIn();
+}
+
+class ChatMessage extends StatelessWidget {
+  ChatMessage({this.text, this.animationController});
+
+  final AnimationController animationController;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return new SizeTransition(
+        sizeFactor: new CurvedAnimation(
+            parent: animationController, curve: Curves.easeOut),
+        axisAlignment: 0.0,
+        child: new Container(
+            margin: const EdgeInsets.symmetric(vertical: 10.0),
+            child: new Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                new Container(
+                    margin: const EdgeInsets.only(right: 16.0),
+                    child: new CircleAvatar(backgroundImage: new NetworkImage(googleSignIn.currentUser.photoUrl),)),
+                new Expanded(
+                  child: new Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      new Text(
+                        googleSignIn.currentUser.displayName,
+                        style: new TextStyle(color: Colors.blue),
+                      ),
+                      new Container(
+                        margin: const EdgeInsets.only(top: 6.0),
+                        child: new Text(text),
+                      )
+                    ],
+                  ),
+                )
+              ],
+            )));
+  }
+}
+
 
 class ChatScreen extends StatefulWidget {
 
@@ -125,27 +176,21 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                 ? () => _handleSubmitted(_textController.text)
                                 : null
                           )),
-                new Container(
-                  margin: new EdgeInsets.symmetric(horizontal: 10.0),
-                  child: new IconButton(icon: new Icon(Icons.message), onPressed: _sendAnalytics)
-                )
               ],
             )));
   }
-  
-  Future<Null> _currentScreen() async {
-    await widget.analytics.setCurrentScreen(screenName: 'this screen');
-  }
 
-  Future<Null> _sendAnalytics() async {
-    await widget.analytics.logEvent(name: 'homescreen', parameters: <String,dynamic>{});
-  }
-
-  void _handleSubmitted(String text) {
+  Future<Null> _handleSubmitted(String text) async {
     _textController.clear();
     setState(() {
       _isComposing = false;
     });
+
+    await _ensureLoggedIn();
+    _sendMessage(text: text);
+  }
+
+  void _sendMessage({String text}) {
     ChatMessage message = new ChatMessage(
       text: text,
       animationController: new AnimationController(
@@ -165,44 +210,4 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-}
-
-class ChatMessage extends StatelessWidget {
-  ChatMessage({this.text, this.animationController});
-
-  final AnimationController animationController;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return new SizeTransition(
-        sizeFactor: new CurvedAnimation(
-            parent: animationController, curve: Curves.easeOut),
-        axisAlignment: 0.0,
-        child: new Container(
-            margin: const EdgeInsets.symmetric(vertical: 10.0),
-            child: new Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                new Container(
-                    margin: const EdgeInsets.only(right: 16.0),
-                    child: new CircleAvatar(child: new Text(_name[0]))),
-                new Expanded(
-                  child: new Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      new Text(
-                        _name,
-                        style: Theme.of(context).textTheme.subhead,
-                      ),
-                      new Container(
-                        margin: const EdgeInsets.only(top: 6.0),
-                        child: new Text(text),
-                      )
-                    ],
-                  ),
-                )
-              ],
-            )));
-  }
 }
