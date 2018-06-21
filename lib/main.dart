@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_analytics/observer.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 void main() => runApp(new ChatApp());
@@ -23,6 +24,7 @@ final ThemeData kDefaultTheme = new ThemeData(
 
 final googleSignIn = new GoogleSignIn();
 final analytics = new FirebaseAnalytics();
+final auth = FirebaseAuth.instance;
 
 class ChatApp extends StatelessWidget {
   static FirebaseAnalyticsObserver observer =
@@ -48,6 +50,14 @@ Future<Null> _ensureLoggedIn() async {
   if (user == null) {
     await googleSignIn.signIn();
     analytics.logLogin();
+  }
+  if (await auth.currentUser() == null) {
+    GoogleSignInAuthentication credentials =
+    await googleSignIn.currentUser.authentication;
+    await auth.signInWithGoogle(
+      idToken: credentials.idToken,
+      accessToken: credentials.accessToken,
+    );
   }
 }
 
